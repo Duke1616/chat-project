@@ -469,7 +469,7 @@ func StartServer(port string, ctx context.Context) {
 }
 
 func connectDb() *gorm.DB {
-	conn, err := gorm.Open(mysql.Open("ebond:123456@tcp(39.97.251.109:3306)/chat?charset=utf8mb4&parseTime=True&loc=Local"))
+	conn, err := gorm.Open(mysql.Open("chat:HbiyJloEvxevVCDp@tcp(39.97.251.109:3306)/chat?charset=utf8mb4&parseTime=True&loc=Local"))
 	if err != nil {
 		log.Fatal("数据库连接失败：", err)
 	}
