@@ -23,10 +23,10 @@ Flags:
   -c, --chatting-with string        被聊天人的账号，以逗号分割 A,B,C (default "all")
 
 ./chat with -a "3919" -n "23850"
-``
+```
 
 ## 进入聊天功能后命令菜单
-···
+```
 # send关键字给对方发送信息
 $ send 你好
 
@@ -38,7 +38,7 @@ $ quit
 
 # subscribe 查看谁找我聊天
 $ subscribe
-···
+```
 
 
 ## 未完成功能
