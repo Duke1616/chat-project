@@ -79,7 +79,7 @@ func ChattingRecords(remoteServerHost, account string, whoDoYouWantToChatWithstr
 		fmt.Printf("<<<<<<欢迎%s|quit退出聊天>>>>>>\n", v.Sender)
 		break
 	}
-
+	fmt.Printf("$ ")
 }
 
 // GrepClientStartTokenAuth TOKEN认证
@@ -347,7 +347,6 @@ func connect(name string, user *proto.User, chattingWith []string, remoteServerH
 			Active:       true,
 			ChattingWith: chattingWith,
 		})
-		fmt.Println("test1")
 		ChattingRecords(remoteServerHost, name, chattingWith)
 	}()
 
@@ -368,6 +367,5 @@ func connect(name string, user *proto.User, chattingWith []string, remoteServerH
 			grpcLog.Infof("%s : %s", msg.User.Nickname, msg.Message)
 		}
 	}(stream)
-	fmt.Println("test2")
 	return streamerror
 }

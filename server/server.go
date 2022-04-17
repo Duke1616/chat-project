@@ -29,7 +29,6 @@ import (
 var grpcLog glog.LoggerV2
 
 func init() {
-	go Crontab()
 	grpcLog = glog.NewLoggerV2(os.Stdout, os.Stdout, os.Stdout)
 }
 
@@ -113,7 +112,6 @@ func (c *ChatServer) GetAllUsers(ctx context.Context, page *proto.PageSize) (*pr
 
 	start := page.PSize * (page.Pn - 1)
 	c.ConnDb.Table("user").Limit(int(page.PSize)).Offset(int(start)).Find(&users)
-	fmt.Println(start, page.Pn, page.PSize)
 	return &proto.UserOnLineList{
 		Data:  users,
 		Total: int32(len(total)),
@@ -165,33 +163,23 @@ func (c *ChatServer) ChattingRecords(ctx context.Context, connect *proto.Connect
 	c.mu.RUnlock()
 	var chat []*proto.ChatRecords
 
+	s := &api.Stack{
+		Data: []*proto.ChatRecords{},
+	}
+
 	c.ConnDb.Order("created_at desc").Limit(10).Where(
 		"sender_account = ? AND receiver_account = ? OR sender_account = ? AND receiver_account = ?",
 		connect.GetUser().Account, connect.GetChattingWith()[0], connect.GetChattingWith()[0], connect.GetUser().Account).Find(&chat)
 
-	type ChatRecords struct {
-		Sender   string `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"`
-		Receiver string `protobuf:"bytes,2,opt,name=receiver,proto3" json:"receiver,omitempty"`
-		Message  string `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	// 倒叙聊天记录保存
+	for _, v := range chat {
+		s.Push(&proto.ChatRecords{
+			Sender:   v.Sender,
+			Receiver: v.Receiver,
+			Message:  v.Message,
+		})
 	}
-
-	//var user *models.User
-	//var withUsers *models.User
-	//var chattingWiths []string
-	//
-	//if len(connect.GetChattingWith()) == 1 {
-	//	for _, chatting := range connect.GetChattingWith() {
-	//		c.ConnDb.Table("user").Where("account = ?", connect.GetUser().Account).Find(&user)
-	//		fmt.Println(user.NickName, user.Account)
-	//
-	//		c.ConnDb.Table("user").Where("account = ?", chatting).Find(&withUsers)
-	//		chattingWiths = append(chattingWiths, withUsers.NickName)
-	//
-	//		c.ConnDb.Order("created_at desc").Limit(10).Where(
-	//			"sender = ? AND receiver = ? OR sender = ? AND receiver = ?", user.NickName, chattingWiths[0], chattingWiths[0], user.NickName).Find(&chat)
-	//	}
-	//}
-	return &proto.RecordsResponses{Data: chat}, nil
+	return &proto.RecordsResponses{Data: s.Data}, nil
 }
 
 // UnRegisterClient 注销客户端
@@ -394,10 +382,8 @@ func (c *ChatServer) RegisterUser(ctx context.Context, info *proto.RegisterUserI
 
 	for i := 0; i <= 10; i++ {
 		if userAccount.Account == "" {
-			fmt.Println("test1")
 			break
 		} else if userAccount.Account == strconv.Itoa(rankNum) {
-			fmt.Println("test2")
 			rankNum = rand.Intn(10)
 			continue
 		}
@@ -456,6 +442,8 @@ func (c *ChatServer) Login(ctx context.Context, info *proto.LoginInfo) (*proto.L
 
 // StartServer 启动server服务
 func StartServer(port string, ctx context.Context) {
+	go Crontab()
+
 	conn, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
@@ -485,7 +473,7 @@ func connectDb() *gorm.DB {
 	if err != nil {
 		log.Fatal("数据库连接失败：", err)
 	}
-	fmt.Println("连接数据库成功")
+	//fmt.Println("连接数据库成功")
 
 	return conn
 }
