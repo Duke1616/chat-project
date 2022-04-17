@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/robfig/cron/v3 v3.0.0
 	github.com/spf13/cobra v1.4.0
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	google.golang.org/grpc v1.45.0

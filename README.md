@@ -14,8 +14,11 @@
 # 登陆用户
 ./chat login -a "3919" -p "123456"
 
-# 查看在线用户
+# 查看所有已注册用户
 ./chat show
+Flags:
+  -p, --pn int32                    指定页数 (default 1)
+  -u, --size int32                  指定用户输出数量 (default 10)
 
 # 开启聊天
 Flags:
@@ -38,6 +41,9 @@ $ quit
 
 # subscribe 查看谁找我聊天
 $ subscribe
+
+# switch 切换聊天用户
+// TODO 未能实现
 ```
 
 
@@ -45,3 +51,4 @@ $ subscribe
 - 此程序进入聊天功能必须通过quit进行退出，不可通过CTRL + C等方式退出
 - 一对多聊天功能暂未完善
 - 单元测试未完成
+- 用户模块-聊天模块未拆分开

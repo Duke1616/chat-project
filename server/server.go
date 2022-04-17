@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/robfig/cron/v3"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	glog "google.golang.org/grpc/grpclog"
@@ -28,6 +29,7 @@ import (
 var grpcLog glog.LoggerV2
 
 func init() {
+	go Crontab()
 	grpcLog = glog.NewLoggerV2(os.Stdout, os.Stdout, os.Stdout)
 }
 
@@ -54,9 +56,68 @@ func NewChatServer() *ChatServer {
 	}
 }
 
-// BackupRecords 备份聊天记录到文件中
-func BackupRecords() {
+// Crontab 备份聊天记录到文件中
+func Crontab() {
+	db := connectDb()
+	c := cron.New()
+	EntryID, err := c.AddFunc("00 */1 * * *", func() {
+		BackupRecords(db)
+	})
+	fmt.Println(time.Now(), EntryID, err)
 
+	c.Start()
+}
+
+// BackupRecords 备份聊天记录到文件中，不考虑服务端Down机情况下
+// 可以数据库通过增加字段处理备份过的打Tag OR 新建表记录最后备份时的状态
+func BackupRecords(db *gorm.DB) {
+	var chats []*models.Chat
+
+	db.Table("chat_records").Find(&chats)
+
+	for _, chat := range chats {
+		records := api.Chat{
+			Sender:          chat.Sender,
+			SenderAccount:   chat.SenderAccount,
+			Receiver:        chat.Receiver,
+			ReceiverAccount: chat.ReceiverAccount,
+			Message:         chat.Message,
+			Status:          chat.Status,
+		}
+
+		data, err := json.Marshal(records)
+		if err != nil {
+			fmt.Println("marshal 出错：", err)
+		}
+
+		file, err := os.OpenFile(global.FilePathRecord, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666) // linux file permission settings
+		if err != nil {
+			fmt.Println("无法打开文件", global.FilePathRecord, "错误信息是：", err)
+			os.Exit(1)
+		}
+		defer file.Close()
+
+		_, err = file.Write(append(data, '\n'))
+	}
+
+}
+
+// GetAllUsers 查看所有注册用户
+func (c *ChatServer) GetAllUsers(ctx context.Context, page *proto.PageSize) (*proto.UserOnLineList, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var total []*proto.User
+	var users []*proto.User
+
+	c.ConnDb.Table("user").Find(&total)
+
+	start := page.PSize * (page.Pn - 1)
+	c.ConnDb.Table("user").Limit(int(page.PSize)).Offset(int(start)).Find(&users)
+	fmt.Println(start, page.Pn, page.PSize)
+	return &proto.UserOnLineList{
+		Data:  users,
+		Total: int32(len(total)),
+	}, nil
 }
 
 // LoadUnreadRecords 加载未读聊天记录
@@ -107,6 +168,12 @@ func (c *ChatServer) ChattingRecords(ctx context.Context, connect *proto.Connect
 	c.ConnDb.Order("created_at desc").Limit(10).Where(
 		"sender_account = ? AND receiver_account = ? OR sender_account = ? AND receiver_account = ?",
 		connect.GetUser().Account, connect.GetChattingWith()[0], connect.GetChattingWith()[0], connect.GetUser().Account).Find(&chat)
+
+	type ChatRecords struct {
+		Sender   string `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"`
+		Receiver string `protobuf:"bytes,2,opt,name=receiver,proto3" json:"receiver,omitempty"`
+		Message  string `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	}
 
 	//var user *models.User
 	//var withUsers *models.User
@@ -308,7 +375,6 @@ func (c *ChatServer) canChatWith(senderChattingWith, currentUserChattingWith []s
 				Status:          "已读",
 			}
 			c.ConnDb.Create(&chat)
-			fmt.Println("true 333")
 			return true
 		}
 	}

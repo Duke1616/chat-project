@@ -7,7 +7,8 @@ service ChatService {
   rpc RegisterUser(RegisterUserInfo) returns (User) {};
   // 登陆
   rpc Login(LoginInfo) returns (LoginResponse) {};
-
+  // 查看所有用户
+  rpc GetAllUsers(PageSize) returns(UserOnLineList) {};
   // 查看已经登陆的用户
   rpc GetOnLineUser(google.protobuf.Empty) returns(UserOnLineList) {};
   // 注销退出的客户端
@@ -27,8 +28,14 @@ service ChatService {
   rpc BroadcastMessage(Message) returns (User) {};
 }
 
+message PageSize {
+  int32 Pn = 1;
+  int32 PSize = 2;
+}
+
 message UserOnLineList {
   repeated User data = 1;
+  int32 total = 2;
 }
 
 message chatRecords {

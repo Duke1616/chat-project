@@ -71,7 +71,6 @@ func ChattingRecords(remoteServerHost, account string, whoDoYouWantToChatWithstr
 		fmt.Println(err)
 	}
 
-	// TODO 未实现位置调换
 	for _, v := range req.Data {
 		fmt.Printf("%s ————> %s： %s \n", v.Sender, v.Receiver, v.Message)
 	}
@@ -136,7 +135,34 @@ func UnRegisterClient(nickname string) {
 	}
 }
 
+func ToUserExist(whoDoYouWantToChatWith []string, remoteServerHost string) bool {
+	client = GrpcClientStart(remoteServerHost)
+	req, err := client.GetAllUsers(context.Background(), &proto.PageSize{
+		Pn:    1,
+		PSize: 1000000000,
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	for _, v := range req.Data {
+		for _, u := range whoDoYouWantToChatWith {
+			if v.Account == u {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func StartWithClient(name, whoDoYouWantToChatWith, remoteServerHost string) {
+	// 判断目标用户是否存在，不存在则退出
+	to := ToUserExist(strings.Split(whoDoYouWantToChatWith, ","), remoteServerHost)
+	if to != true {
+		fmt.Println("目标用户未注册")
+		os.Exit(3)
+	}
+
 	timestamp := time.Now()
 	done := make(chan int)
 
@@ -146,7 +172,7 @@ func StartWithClient(name, whoDoYouWantToChatWith, remoteServerHost string) {
 		Account: name,
 	}
 
-	err := connect(name, user, strings.Split(whoDoYouWantToChatWith, ","))
+	err := connect(name, user, strings.Split(whoDoYouWantToChatWith, ","), remoteServerHost)
 	if err != nil {
 		panic(err)
 	}
@@ -188,10 +214,9 @@ func StartWithClient(name, whoDoYouWantToChatWith, remoteServerHost string) {
 				}
 
 				select {
-				case i, ok := <-test:
+				case <-test:
 					info, _ := client.BroadcastMessage(context.Background(), msg)
 					go quitClient(msg, info.Nickname)
-					fmt.Println(i, ok)
 				default:
 					SaveUnreadRecords(strings.Split(whoDoYouWantToChatWith, ","), remoteServerHost, msg.Message, name)
 					fmt.Println("对方用户未登陆，数据保存数据库")
@@ -211,6 +236,22 @@ func StartWithClient(name, whoDoYouWantToChatWith, remoteServerHost string) {
 			if cmd == "subscribe" {
 				LoadUnreadRecords(name, remoteServerHost)
 			}
+
+			// TODO 平滑切换用户聊天 未实现
+			if cmd == "switch" {
+				rd := bufio.NewReader(os.Stdin)
+				lineBuf, _, _ := rd.ReadLine()
+				line := string(lineBuf)
+
+				stream, _ := client.CreateChatStream(context.Background())
+				_ = stream.Send(&proto.Connect{
+					User:         user,
+					Active:       true,
+					ChattingWith: strings.Split(line, ","),
+				})
+				fmt.Println(strings.Split(line, ","))
+				ChattingRecords(remoteServerHost, name, strings.Split(line, ","))
+			}
 		}
 	}()
 
@@ -220,6 +261,22 @@ func StartWithClient(name, whoDoYouWantToChatWith, remoteServerHost string) {
 	}()
 
 	<-done
+}
+
+func GetUserList(remoteServerHost string, pn, pSize int32) {
+	client = GrpcClientStart(remoteServerHost)
+	req, err := client.GetAllUsers(context.Background(), &proto.PageSize{
+		Pn:    pn,
+		PSize: pSize,
+	})
+	if err != nil {
+		return
+	}
+	fmt.Printf("目前聊天室共注册用户：%d\n", req.Total)
+
+	for _, v := range req.Data {
+		fmt.Printf("名称：%s  账号：%s\n", v.Nickname, v.Account)
+	}
 }
 
 func GetClientList(remoteServerHost string) {
@@ -279,7 +336,7 @@ func quitClient(msg *proto.Message, nickname string) {
 	}
 }
 
-func connect(name string, user *proto.User, chattingWith []string) error {
+func connect(name string, user *proto.User, chattingWith []string, remoteServerHost string) error {
 	var streamerror error
 
 	stream, err := client.CreateChatStream(context.Background())
@@ -290,7 +347,8 @@ func connect(name string, user *proto.User, chattingWith []string) error {
 			Active:       true,
 			ChattingWith: chattingWith,
 		})
-		ChattingRecords("127.0.0.1:8080", name, chattingWith)
+		fmt.Println("test1")
+		ChattingRecords(remoteServerHost, name, chattingWith)
 	}()
 
 	if err != nil {
@@ -310,6 +368,6 @@ func connect(name string, user *proto.User, chattingWith []string) error {
 			grpcLog.Infof("%s : %s", msg.User.Nickname, msg.Message)
 		}
 	}(stream)
-
+	fmt.Println("test2")
 	return streamerror
 }
